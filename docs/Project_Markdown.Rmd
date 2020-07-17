@@ -16,12 +16,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Research Question
 Have recent changes in the climate caused a change in the migration pattern of either Striped Bass or Menhaden? Furthermore, have striped bass lessened its following of the Menhaden and possibly created resident populations?
 
-Striped bass is a very popular game fish in the North East, with menhaden being a primary food supply. It has been found that Menhaden produce a cyclic movement from north to south, spending the summer in waters north of Cape Cod and begin a migration southward reaching North Carolina in November (Nicholson). The striped bass can follow this food supply throughout the year, hence following the same migration pattern as the menhaden. It is known that some striped bass, such as those studied in the Delaware Bay, remain close to river mouths, and follow the tides in and out of the river. These fish were only recorded over a 140 hour period, and therefore do not fully display relations to menhaden (Tupper & Able). However, it opens the possibility that populations of striped bass are moving away from the menhaden food source and establishing resident populations. A study focusing on striped bass in the Hudson river showed that three contingents existed inside of the studied population that had divergent migration patterns, with the larger adults migrating all the way into Cape Cod waters in the spring (Gahagan et al).  
+Striped bass is a very popular game fish species in the North East, with menhaden being a primary food supply. It has been found that Menhaden produce a cyclic movement from North to South, spending the summer in waters north of Cape Cod and begin a migration southward reaching North Carolina in November (Nicholson). The striped bass can follow this food supply throughout the year, hence following the same migration pattern as the menhaden. It is known that some striped bass, such as those studied in the Delaware Bay, remain close to river mouths, and follow the tides in and out of the river. These fish were only recorded over a 140 hour period, and therefore do not fully display relations to menhaden (Tupper & Able). However, it opens the possibility that populations of striped bass are moving away from the menhaden food source and establishing resident populations. A study focusing on striped bass in the Hudson river showed that three contingents existed inside of the studied population that had divergent migration patterns, with the larger adults migrating all the way into Cape Cod waters in the spring (Gahagan et al).
+
+In this project I hope to:
+
++ Download data files for each species and raster for temperature and bathymetry
++ Create historical graphs to understand the preferred migration patterns
++ Generate Year Intervals from 2007-2020 for each month to see newly established preferences 
 
 ## Loading Necesaary Data And Libraries 
 
-```{r, message=FALSE}
-#Libraries Needed
+Data files for both striped bass and Menhaden were dowloaded from GBIF. GBIF uses observational data of public recordings rather than a more accurate tagging program. Therefore the data has bias in human activity levels to manage recordings. Both temperature and bathymetry came from MARSPEC in the form of Google Drive files. In order to download this data, an active Google Drive account needs to be available. 
+
+```{r, message=FALSE, warning=FALSE}
+#Libraries Needed for this Project. 
 library(dplyr)
 library(spocc)
 library(ggplot2)
@@ -34,19 +42,19 @@ library(googledrive)
 striped_bass = occ(query = "Morone saxatilis",
                   from= "gbif", 
                   limit=3000, 
-                  has_coords=TRUE)
+                  has_coords=TRUE)  #limit set to 3000 to acquire many data points and eliminate chances of skewed data
 
 menhaden = occ(query = "Brevoortia tyrannus",
                   from= "gbif", 
                   limit=3000, 
-                  has_coords=TRUE)
+                  has_coords=TRUE) #limit set to 3000 to acquire many data points and eliminate chances of skewed data
 
 #Calling in Raster Data from a MARSPEC Google Drive File for Temperature and Bathymetry
 
 dl_1 <- drive_download(
   as_id("0BzY4i8pEFYeQenc0R0lQNTdQWkk"), path = 'temperature', 
   overwrite = TRUE)
-temperature = raster('temperature')
+temperature = raster('temperature') #as_id is the portion of the URL when downloading that gave the exact id of the file at hand
 
 dl_2 <- drive_download(
   as_id("0BzY4i8pEFYeQOVVoZ2JrVW9TdzA"), path = 'bathy', 
@@ -56,10 +64,12 @@ bathymetry = raster('bathy')
 
 ## Modifications to the Dataframes to Create a More Organized Dataframe and Environment
 
-The longitude and latitude column values for both species were converted to numeric values so they could be expressed as a continuous X-axis for the histograms. A species column was also created for each species data frame for easy recognition when combining the frames and showing values for each species separately on the same histogram. 
+The longitude and latitude column values for both species were converted to numeric values so they could be expressed as a continuous X-axis for the histograms. A species column was also created for each species data frame for easy recognition when combining the frames and showing values for each species separately on the same histogram. Latitude and Longitude were also converted to numeric values in order to be passed through the spatial points data frame later on. 
 
-```{r, message==FALSE}
+```{r, message==FALSE, warning=FALSE}
 #Modifying Data Frames from Both Species to Select Columns Longitude, Latitude, Year, Month, and Species 
+
+#the following is a cleaning of the species data set by filtering only the wanted columns and renaming some of the columns for ease fos use
 
 striped_bass_df<- data.frame(striped_bass$gbif$data)%>% 
   dplyr::select(Morone_saxatilis.longitude, Morone_saxatilis.latitude,
@@ -94,20 +104,20 @@ Both_species_df <- rbind(striped_bass_df, menhaden_df)
 ```
 
 ## Creating, Extracting, and Combining Rasters with Data Frame 
-In order to use the values of latitude created for the species, a spatial points data frame was generated, and also the rasters for both temperature and bathymetry were extracted using the same spatial data points. 
+In order to use the values of latitude created for the species, a spatial points data frame was generated, and also the rasters for both temperature and bathymetry were extracted using the same spatial data points. This would allow both the latitude and longitude values to be connected to actual values that could be applied to making images. 
 
-```{r, message=FALSE}
+```{r, message=FALSE, warning=FALSE}
 #Create a Spatial Points Data Frame for Raster Extraction
 
 points_crs = crs("+proj=longlat +datam=WGS84 +ellps=WGS84 +towgs84=0,0,0")
 
 sp.points = SpatialPointsDataFrame(Both_species_df[,c('Longitude', 'Latitude')],Both_species_df,proj4string = points_crs)
 
-#Extracting the Rasters from Downloaded Google Drive Files
+#Extracting the Rasters from Downloaded Google Drive Files so they can be used in coordination with the species data frames. 
 
 temperature_extract <- extract(temperature, sp.points) %>% 
   as.data.frame() %>% 
-  dplyr::select(temperature=".")
+  dplyr::select(temperature=".") #this line is because when downloading the files, the column name is given simply as ".", so to ease confusion it is renamed. 
 
 bathymetry_extract <- extract(bathymetry, sp.points) %>% 
   as.data.frame() %>%
@@ -120,9 +130,9 @@ whole_data <- cbind(temperature_extract, bathymetry_extract, Both_species_df)
 ```
 
 ## Creating Historical Histograms 
-It is important to be able to compare the data we are interested in (2007-2020) to the traditional migration patterns both species underwent. In order to do this, a subsection of the data was used (1953-2007) to create historic patterns of Latitude, Bathymetry, and Temperature preference for each month
+It is important to be able to compare the data we are interested in (2007-2020) to the traditional migration patterns both species underwent. In order to do this, a subsection of the data was used (1953-2007) to create historic patterns of Latitude, Bathymetry, and Temperature preference for each month. 
 
-```{r, message = FALSE}
+```{r, message = FALSE, warning=FALSE}
 #Historic Latitude Graphs (1953-2007)
 Both_species_historic <- Both_species_df%>% 
   filter(Year %in% (1953:2007))
@@ -163,6 +173,8 @@ print('Historic_Migration_Bathymetry')
 
 ```
 
+These Three graphs each display the historical preferences that both species displayed during the later half of the 20th century and the early 21st century. These graphs will be used as a baseline behavior for the new year intervals to see if any form of climate change has played a large effect on either species migration pattern. 
+
 ## Creating Intervals To Observe Changes in Migration
 Now that the historical data has been graphed, the new migration patterns need to be graphed. In order to get the most out of the data, sub-setting it into three year intervals can provide a better understanding of changes either fish species might have adapted. If 2007-2020 were all graphed on a single histogram then any patterns that slowly evolved would be hidden. In order to create these chunks, the cut() function was applied to the Year column in the data frame.
 
@@ -177,8 +189,8 @@ whole_data_mutated <- mutate(whole_data,Year_cut=Year_cut)%>% na.omit()
 ## Creating Histograms for the Year Intervals
 Now that the Year has been modified to be spliced into three year intervals, this data can be taken and placed inside of ggplot to how the migration changes over Latitude, Temperature, and Bathymetry. The following code takes the whole_data_mutated frame generated earlier, and makes a graph for each variable.
 
-```{r, message = FALSE}
-#Year Interval Graphs for Latitude Preference Amongst Both Species #(2007-2020)
+```{r, message = FALSE, warning=FALSE}
+#Year Interval Graphs for Latitude Preference Among Both Species #(2007-2020)
 ggplot(whole_data_mutated)+
   geom_histogram( 
     aes(x= Latitude, color= Species), 
@@ -218,6 +230,8 @@ ggsave('Bathymetry_Over_Year_Intervals.png', width = 15, height = 9)
 
 ```
 
+These graphs display so much data that the code could not properly display their results through this html. However, using the code ggsave will place expanded photos of the graphs with readable data on your computer. Likewise, you can also reference the figures through the GitHub repository available at: https://github.com/AdamZigg/final_project_bio316 in the Figures Folder. 
+
 ## Results
 When comparing the recent year intervals to the historic data many of the same trends occur. For the latitudinal focused histograms, in both cases the striped bass and menhaden were spread across many latitudes, but when there was a higher abundance of menhaden at a given latitude, there was also a higher abundance of striped bass. When looking at the Temperature based histograms, there is a use of residing in waters at the 20 C mark (2016-2020), which were not found in the historical data. This suggests that both the striped bass and menhaden might slowly becoming acclimated to warmer waters and in the future will use the 20 C water for their migrations. Lastly, bathymetry seems to have stayed consistent in both the historic and more recent data. There are some points where a few fish were sampled in depths of -40 m, but this could be attributed to the increase in recorded digital catches over the past 10 years than catches prior to the internet. 
 
@@ -225,6 +239,7 @@ Galagen et al. found that seasonal movements of striped bass could be detected b
 
 Seeing such a strong correlation in the abundance of Menhaden to the abundance of striped bass is not surprising. Although there are alternative food sources, larger striped bass (those that are able to undergo such a migration and likely to survive it) feed on Menhaden. In fact, Ruderhausen et al. found that striped bass of age 2+ consumed only Atlantic menhaden on "a consistent basis". Sadly, none of the papers touched upon discussed the possible effects of temperature on the feeding preferences of striped bass. However, the strong mimicry in migration in both species suggests that the striped bass consumes Menhaden in varying temperatures and does not seem impeded in following the menhaden in warmer or cooler water temperatures. On a final note, the publication by Tupper & Able discussed the potential that structure could affect striped bass movement. Although they did not explicitly study it, the idea of structure could help explain the presence of bass at higher latitudes during the winter months when they should be in the Carolinas. Perhaps ship wrecks in the Hudson River area provide structure for the bait, and thus can support a small resident population for a portion or all of winter until the Menhaden swim northwards the next spring. 
 
+It would be nice to continually look and update this data through the coming years to see if the next decade still falls in line with the historical data, or if a new pattern emerges. 
 
 ## References
 
